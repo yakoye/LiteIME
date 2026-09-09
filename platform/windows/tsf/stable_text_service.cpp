@@ -1325,11 +1325,24 @@ HostKeyEvent TextService::map_key(const WPARAM wparam) const noexcept {
         event.character = '\'';
         return event;
     }
+    // The dash pages back through candidate rows -- but only where there are
+    // rows to page back through. A list still showing the single row it opened
+    // with was never paged down, so paging up cannot be what the key means
+    // there, and treating it as paging made the dash a dead key inside a
+    // composition: apple-book and in-to could not be typed at all, in either
+    // input mode. The Host consumes the key and stops, which is right while
+    // someone is reading candidates and wrong while they are typing a word.
+    //
+    // Expanded is the signal that separates the two, and the mirror already
+    // carries it. The equals key keeps paging from the collapsed row, because
+    // opening the list is exactly what it is for.
+    const bool paging_dash = composing && !shifted && wparam == VK_OEM_MINUS &&
+        mirror_.snapshot().view.expanded;
+    const bool paging_equals = composing && !shifted && wparam == VK_OEM_PLUS;
     // The backtick used to open a composition of its own -- ``f, ``u and so on
     // -- and it is gone. What is left is a punctuation key like any other, so
     // it falls through to the punctuation branch below.
-    if (is_punctuation_key(wparam) &&
-        !(composing && !shifted && (wparam == VK_OEM_MINUS || wparam == VK_OEM_PLUS))) {
+    if (is_punctuation_key(wparam) && !paging_dash && !paging_equals) {
         event.kind = HostKeyKind::punctuation;
         event.character = punctuation_base_key(wparam);
         event.shifted = shifted;

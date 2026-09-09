@@ -1182,6 +1182,15 @@ endif()
 if(NOT text_service_text MATCHES "VK_OEM_MINUS" OR NOT text_service_text MATCHES "VK_OEM_PLUS")
     message(FATAL_ERROR "TSF must support minus/equal candidate paging")
 endif()
+# Paging up has to be conditional on there being rows to page up through.
+# Unconditionally, the dash is a dead key inside a composition -- the Host
+# consumes it and stops -- and apple-book and in-to cannot be typed at all.
+if(NOT text_service_text MATCHES "paging_dash[^;]*expanded")
+    message(FATAL_ERROR
+        "The dash may only page candidate rows while the list is expanded. A list still showing "
+        "the row it opened with was never paged down, so paging up cannot be what the key means "
+        "there -- it is a hyphen, and words like apple-book have to stay typeable")
+endif()
 
 if(NOT text_service_text MATCHES "toggle_input_mode")
     message(FATAL_ERROR "TSF must support standalone Shift input-mode switching")

@@ -1176,6 +1176,20 @@ void test_smart_punctuation() {
     expect('.', "已有1.", "2", piinput::SmartPunctuationAction::transform,
         "PUNC-NUMERIC-INVALID", "CHINESE_TEXT", "Malformed numeric punctuation is not protected");
 
+    // The two-key rule reads letters as well as digits. Before it did, a period
+    // after a Latin word became 。 with no way to get `.` short of switching to
+    // English mode.
+    expect('.', "文件apple", {}, piinput::SmartPunctuationAction::literal,
+        "PUNC-DOT-AFTER-DIGIT", "SEQUENCE",
+        "The first period after a letter remains ASCII immediately");
+    expect('.', "文件apple.", {}, piinput::SmartPunctuationAction::transform,
+        "PUNC-CHINESE", "CHINESE_TEXT",
+        "The second period after a letter becomes a Chinese full stop");
+    // Chinese prose is untouched: its last byte is not ASCII.
+    expect('.', "这句话结束了", {}, piinput::SmartPunctuationAction::transform,
+        "PUNC-CHINESE", "CHINESE_TEXT",
+        "A period after Chinese text is Chinese on the first key, as before");
+
     expect(':', "12", "23", piinput::SmartPunctuationAction::literal,
         "PUNC-COLON-TIME", "TIME", "A valid time colon stays ASCII");
     expect(':', "24", "99", piinput::SmartPunctuationAction::literal,

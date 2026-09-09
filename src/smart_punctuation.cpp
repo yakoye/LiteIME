@@ -519,12 +519,21 @@ SmartPunctuationDecision SmartPunctuationEngine::decide_on_line(
         return {SmartPunctuationAction::transform, "PUNC-NUMERIC-INVALID", chinese, "CHINESE_TEXT"};
     }
 
-    // The two-key rule, and the colon works the same way as the period now.
+    // The two-key rule, and the colon works the same way as the period.
     //
-    // The first one straight after a digit is ASCII, so `0.8.1` and `12:32`
-    // come out as typed. Pressing it again gives the Chinese form, and that
-    // falls out of the same test rather than needing state: after the ASCII
-    // one is in, the character before the caret is no longer a digit.
+    // The first one straight after a digit or a letter is ASCII, so `0.8.1`,
+    // `12:32` and `apple.txt` come out as typed. Pressing it again gives the
+    // Chinese form, and that falls out of the same test rather than needing
+    // state: after the ASCII one is in, the character before the caret is no
+    // longer alphanumeric.
+    //
+    // Letters were not included at first, and that left the rule half applied:
+    // a period after a Latin word became 。 with no way to get `.` short of
+    // switching to English mode. The cost is that Chinese prose ending in an
+    // English word now needs the key twice for its full stop -- and that is
+    // the same bargain already accepted for digits, where `第1。` costs two as
+    // well. Text ending in a Chinese character is untouched, because its last
+    // byte is not ASCII.
     //
     // The colon used to be provisional -- insert ASCII, wait for the next key,
     // rewrite if it turned out to be prose. That bought nothing here, since
@@ -532,7 +541,7 @@ SmartPunctuationDecision SmartPunctuationEngine::decide_on_line(
     // put the period back on that path either: leaving it provisional and
     // rewriting when prose follows is exactly how `1.文本` became `1。文本`.
     if ((context.symbol == '.' || context.symbol == ':') &&
-        is_ascii_digit_local(last_byte(context.left_text)) &&
+        is_ascii_alphanumeric(last_byte(context.left_text)) &&
         context.right_text.empty()) {
         if (context.symbol == ':') {
             return {SmartPunctuationAction::literal,
