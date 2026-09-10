@@ -1190,6 +1190,23 @@ void test_smart_punctuation() {
         "PUNC-CHINESE", "CHINESE_TEXT",
         "A period after Chinese text is Chinese on the first key, as before");
 
+    // The predicate the rule is built from, shared with the Host. The Host asks
+    // it about the text a composition is committing, which is the only place
+    // that knows whether `geek` or 你好 is about to land in front of the symbol.
+    using piinput::SmartPunctuationEngine;
+    check(SmartPunctuationEngine::first_key_is_ascii("geek", '.'),
+        "a period straight after Latin letters is ASCII on the first key");
+    check(SmartPunctuationEngine::first_key_is_ascii("0.8", '.'),
+        "and so is one straight after a digit");
+    check(SmartPunctuationEngine::first_key_is_ascii("http", ':'),
+        "the colon reads the same way");
+    check(!SmartPunctuationEngine::first_key_is_ascii("你好", '.'),
+        "but a period after Chinese text is not, so 你好。 still costs one key");
+    check(!SmartPunctuationEngine::first_key_is_ascii("", '.'),
+        "and neither is one with nothing in front of it");
+    check(!SmartPunctuationEngine::first_key_is_ascii("geek", ','),
+        "the rule covers the period and the colon, not every symbol");
+
     expect(':', "12", "23", piinput::SmartPunctuationAction::literal,
         "PUNC-COLON-TIME", "TIME", "A valid time colon stays ASCII");
     expect(':', "24", "99", piinput::SmartPunctuationAction::literal,

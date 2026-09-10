@@ -1,6 +1,7 @@
 #include "piinput/host_session.h"
 
 #include "piinput/candidate_layout.h"
+#include "piinput/smart_punctuation.h"
 
 #include <algorithm>
 #include <limits>
@@ -152,15 +153,27 @@ HostReply HostSession::apply(const HostKeyEvent& event) {
     }
     if (event.kind == HostKeyKind::punctuation ||
         event.kind == HostKeyKind::literal_punctuation) {
-        const std::string symbol = punctuation_.transform(
-            event.character,
-            event.kind == HostKeyKind::literal_punctuation || mode_ == HostInputMode::english
-                ? PunctuationMode::english
-                : settings_.punctuation,
-            event.shifted,
-            settings_.punctuation_bracket_style);
+        // 符号跟在什么后面，决定它取中文还是 ASCII 形式——而合成串上屏时，跟
+        // 在它前面的是这次提交出去的文本，不是文档里原来的内容。那段文本只有
+        // 这里知道：可能是选中的候选（你好），也可能是原样上屏的输入（geek）。
+        //
+        // Shim 判不了这一步。它在按键送出之前就要决定，那时合成串还没上屏，而
+        // 它手上的合成串文本是原始拼音——拿 nihao 去判会把「你好。」变成要按两
+        // 次句号。所以有合成串时，Shim 一律交给中文形式，由这里按实际提交的文
+        // 本改判。没有合成串时 preceding 为空，规则不成立，Shim 的判定原样通过。
+        const auto symbol_after = [&](const std::string_view preceding) {
+            const bool english_form =
+                event.kind == HostKeyKind::literal_punctuation ||
+                mode_ == HostInputMode::english ||
+                SmartPunctuationEngine::first_key_is_ascii(preceding, event.character);
+            return punctuation_.transform(
+                event.character,
+                english_form ? PunctuationMode::english : settings_.punctuation,
+                event.shifted,
+                settings_.punctuation_bracket_style);
+        };
         if (current_raw().empty()) {
-            return reply(true, HostAction::commit, symbol);
+            return reply(true, HostAction::commit, symbol_after({}));
         }
         const std::size_t index = selected_candidate_index();
         if (index < current_candidate_count()) {
@@ -178,14 +191,16 @@ HostReply HostSession::apply(const HostKeyEvent& event) {
                 if (next >= current_candidate_count()) break;
                 chosen = choose(candidate_id_at(next));
             }
-            if (chosen.accepted && chosen.action == HostAction::commit) chosen.text += symbol;
+            if (chosen.accepted && chosen.action == HostAction::commit) {
+                chosen.text += symbol_after(chosen.text);
+            }
             return chosen;
         }
         const std::string raw = current_raw();
         if (mode_ == HostInputMode::english && english_ != nullptr) english_->clear();
         else chinese_.clear();
         advance_generation(true);
-        return reply(true, HostAction::commit, raw + symbol);
+        return reply(true, HostAction::commit, raw + symbol_after(raw));
     }
     if (event.kind == HostKeyKind::previous_candidate ||
         event.kind == HostKeyKind::next_candidate) {

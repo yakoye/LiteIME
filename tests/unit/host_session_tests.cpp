@@ -286,6 +286,33 @@ void test_punctuation_is_transformed_and_committed_by_host() {
             numeric_dot.text == ".",
         "a decimal/list dot after a direct digit remains ASCII in Chinese mode");
 
+    // 合成串上屏时，符号跟在刚提交的那段文本之后，形态由那段文本决定。这一步
+    // 只有 Host 判得了：Shim 在按键送出之前就要决定，那时它手上的合成串文本是
+    // 原始拼音，拿它去判会把「我。」也变成要按两次。
+    for (const char letter : std::string("wo")) {
+        (void)session.apply({.kind = piinput::HostKeyKind::text, .character = letter});
+    }
+    const auto after_chinese = session.apply({
+        .kind = piinput::HostKeyKind::punctuation,
+        .character = '.',
+    });
+    check(after_chinese.accepted && after_chinese.action == piinput::HostAction::commit &&
+            after_chinese.text == "我。",
+        "a period that commits a Chinese candidate stays Chinese on the first key");
+
+    // 打不出中文候选的输入原样上屏，符号跟的就是那串字母。qqq 在这个测试词库里
+    // 没有任何候选，走的正是用户遇到的那条路：raw + 符号。
+    for (const char letter : std::string("qqq")) {
+        (void)session.apply({.kind = piinput::HostKeyKind::text, .character = letter});
+    }
+    const auto after_latin = session.apply({
+        .kind = piinput::HostKeyKind::punctuation,
+        .character = '.',
+    });
+    check(after_latin.accepted && after_latin.action == piinput::HostAction::commit &&
+            after_latin.text == "qqq.",
+        "a period that commits raw Latin input is ASCII on the first key");
+
     const auto fraction_slash = session.apply({
         .kind = piinput::HostKeyKind::literal_punctuation,
         .character = '/',

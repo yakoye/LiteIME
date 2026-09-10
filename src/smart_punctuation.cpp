@@ -436,6 +436,13 @@ bool SmartPunctuationEngine::is_ascii_digit(const char value) noexcept {
     return is_ascii_digit_local(value);
 }
 
+bool SmartPunctuationEngine::first_key_is_ascii(
+    const std::string_view preceding,
+    const char symbol) noexcept {
+    if (symbol != '.' && symbol != ':') return false;
+    return is_ascii_alphanumeric(last_byte(preceding));
+}
+
 SmartPunctuationDecision SmartPunctuationEngine::decide(
     const SmartPunctuationContext& context) const noexcept {
     if (context.symbol == '/') {
@@ -540,8 +547,7 @@ SmartPunctuationDecision SmartPunctuationEngine::decide_on_line(
     // both outcomes are already reachable, and cost a visible rewrite. Do not
     // put the period back on that path either: leaving it provisional and
     // rewriting when prose follows is exactly how `1.文本` became `1。文本`.
-    if ((context.symbol == '.' || context.symbol == ':') &&
-        is_ascii_alphanumeric(last_byte(context.left_text)) &&
+    if (first_key_is_ascii(context.left_text, context.symbol) &&
         context.right_text.empty()) {
         if (context.symbol == ':') {
             return {SmartPunctuationAction::literal,
