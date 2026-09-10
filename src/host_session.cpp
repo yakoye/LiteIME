@@ -193,8 +193,20 @@ HostReply HostSession::apply(const HostKeyEvent& event) {
             }
             if (chosen.accepted && chosen.action == HostAction::commit) {
                 chosen.text += symbol_after(chosen.text);
+                return chosen;
             }
-            return chosen;
+            // 解析没走到提交：前缀候选把输入消费不完而后续无候选，或者防护计数
+            // 用尽。此前到这里就直接返回，符号被整个丢掉——用户按了键，屏幕上
+            // 什么都不多，也没有任何提示。标点是明确的合成边界，停在半路不是不
+            // 结束的理由：把已经落定的部分连同剩余输入一起上屏，符号跟在后面。
+            //
+            // 不能用 current_raw()：分段选择状态下它只剩未处理的拼音，已落定的
+            // 中文在 staged_text 里，那样会把它丢掉。
+            const std::string pending = pending_composition_text();
+            if (mode_ == HostInputMode::english && english_ != nullptr) english_->clear();
+            else chinese_.clear();
+            advance_generation(true);
+            return reply(true, HostAction::commit, pending + symbol_after(pending));
         }
         const std::string raw = current_raw();
         if (mode_ == HostInputMode::english && english_ != nullptr) english_->clear();
@@ -417,9 +429,7 @@ HostSnapshot HostSession::snapshot() const {
         return result;
     }
     result.raw = source.input;
-    result.composition_text = source.view_mode == CandidateViewMode::segment_selection
-        ? source.staged_text + source.remaining_pinyin
-        : source.input;
+    result.composition_text = pending_composition_text();
     result.caret = source.view_mode == CandidateViewMode::segment_selection
         ? result.composition_text.size()
         : source.caret;
@@ -903,6 +913,16 @@ void HostSession::select_first_segment_candidate() {
     if (first_segment < segmented.candidates.size()) {
         candidate_grid_.select_index(first_segment);
     }
+}
+
+std::string HostSession::pending_composition_text() const {
+    if (mode_ == HostInputMode::english && english_ != nullptr) {
+        return english_->snapshot().input;
+    }
+    const auto& source = chinese_.snapshot();
+    return source.view_mode == CandidateViewMode::segment_selection
+        ? source.staged_text + source.remaining_pinyin
+        : source.input;
 }
 
 const std::string& HostSession::current_raw() const noexcept {

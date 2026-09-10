@@ -177,6 +177,10 @@ private:
     [[nodiscard]] bool open_datetime_menu(const std::string& reading);
     void close_datetime_menu() noexcept;
     [[nodiscard]] const std::string& current_raw() const noexcept;
+    // 合成串整体上屏时该写出的文本。分段选择状态下 current_raw() 只剩未处理的
+    // 拼音，已经落定的那部分在 staged_text 里——拿 current_raw() 去提交会把它
+    // 丢掉。快照和标点的边界处理都要这个值，所以只留一份定义。
+    [[nodiscard]] std::string pending_composition_text() const;
     [[nodiscard]] std::size_t selected_candidate_index() const noexcept;
     [[nodiscard]] std::uint64_t candidate_id_at(std::size_t index) const noexcept;
 

@@ -313,6 +313,23 @@ void test_punctuation_is_transformed_and_committed_by_host() {
             after_latin.text == "qqq.",
         "a period that commits raw Latin input is ASCII on the first key");
 
+    // 候选只能覆盖前缀、后续又没有候选时，逐段落定的循环会停在 update 上。此前
+    // 到这里符号被整个丢掉——按了键屏幕上什么都不多。geek 在这个测试词库里正好
+    // 是这种输入：有部分候选，消费不完 geek 四个字母。
+    for (const char letter : std::string("geek")) {
+        (void)session.apply({.kind = piinput::HostKeyKind::text, .character = letter});
+    }
+    const auto exhausted = session.apply({
+        .kind = piinput::HostKeyKind::punctuation,
+        .character = '.',
+    });
+    check(exhausted.accepted && exhausted.action == piinput::HostAction::commit,
+        "punctuation ends the composition even when candidate resolution ran out");
+    check(!exhausted.text.empty(),
+        "and the symbol is not silently dropped along with it");
+    check(exhausted.text.ends_with(".") || exhausted.text.ends_with("。"),
+        "whichever form it takes, the symbol reaches the document");
+
     const auto fraction_slash = session.apply({
         .kind = piinput::HostKeyKind::literal_punctuation,
         .character = '/',
